@@ -4,19 +4,29 @@ var crs=JSON.parse(JSON.stringify(CD));
 var FBURL='https://crouzilles-2026-default-rtdb.europe-west1.firebasedatabase.app/data.json';
 var saveTimer=null,pollTimer=null;
 
+function syncBar(msg,cls){
+  var b=document.getElementById('syncbar');
+  if(!b)return;
+  b.textContent=msg;b.className='syncbar '+cls;
+  if(cls==='ok')setTimeout(function(){b.textContent='';b.className='syncbar';},4000);
+}
+
 function sv(){
   if(saveTimer)clearTimeout(saveTimer);
   saveTimer=setTimeout(function(){
+    syncBar('Sauvegarde...','saving');
     fetch(FBURL,{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({plan:plan,crs:crs})
     }).then(function(r){
       saveTimer=null;
-      if(!r.ok)console.error('Save error',r.status);
+      var t=new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'});
+      if(r.ok)syncBar('\u2713 Sauvegard\u00e9 '+t,'ok');
+      else syncBar('\u26a0\ufe0f Erreur '+r.status,'err');
     }).catch(function(e){
       saveTimer=null;
-      console.error('Save failed',e);
+      syncBar('\u26a0\ufe0f '+e.message,'err');
     });
   },500);
 }
@@ -236,13 +246,20 @@ migrate();
 renderP();
 renderC();
 // Initial load from Firebase
+syncBar('Connexion Firebase...','saving');
 fetch(FBURL)
-  .then(function(r){return r.json();})
+  .then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.json();
+  })
   .then(function(data){
     if(data&&Array.isArray(data.plan)&&data.plan.length>0){
       plan=data.plan;crs=data.crs;migrate();renderP();renderC();
-    } else { sv(); }
-  }).catch(function(){ sv(); });
+      syncBar('\u2713 Connect\u00e9','ok');
+    } else {
+      sv();
+    }
+  }).catch(function(e){ syncBar('\u26a0\ufe0f '+e.message,'err'); });
 // Poll every 5s
 pollTimer=setInterval(fetchRemote,5000);
 </script></body></html>
